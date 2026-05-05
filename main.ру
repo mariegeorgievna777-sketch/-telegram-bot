@@ -1,0 +1,59 @@
+import os
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+
+TOKEN = os.getenv("BOT_TOKEN")
+
+questions = [
+    ("Кто вам интереснее?", ["Только кошка", "Только собака", "Любой вариант"]),
+    ("Есть ли аллергия?", ["Сильная", "Слабая", "Нет"]),
+]
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["step"] = 0
+    context.user_data["answers"] = []
+    await ask(update, context)
+
+async def ask(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    step = context.user_data["step"]
+    q, options = questions[step]
+
+    keyboard = [[o] for o in options]
+
+    await update.message.reply_text(
+        q,
+        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    )
+
+async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if "step" not in context.user_data:
+        await start(update, context)
+        return
+
+    context.user_data["answers"].append(update.message.text)
+    context.user_data["step"] += 1
+
+    if context.user_data["step"] < len(questions):
+        await ask(update, context)
+    else:
+        answers = context.user_data["answers"]
+
+        if "Только кошка" in answers:
+            text = "🐱 Тебе кошка!"
+        elif "Только собака" in answers:
+            text = "🐶 Тебе собака!"
+        else:
+            text = "🐾 Подходят оба!"
+
+        await update.message.reply_text(text)
+
+def main():
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
+
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
